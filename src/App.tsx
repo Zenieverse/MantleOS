@@ -47,6 +47,7 @@ export default function App() {
   const [activePlan, setActivePlan] = useState<any>(null);
   const [depositAmount, setDepositAmount] = useState("100");
   const [isDepositing, setIsDepositing] = useState(false);
+  const [isRecalculating, setIsRecalculating] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
   // Server state mirroring
@@ -126,18 +127,22 @@ export default function App() {
   }, []);
 
   // Submit Orchestrate query
-  const submitOrchestration = async (e?: React.FormEvent) => {
+  const submitOrchestration = async (e?: React.FormEvent, overridePrompt?: string) => {
     if (e) e.preventDefault();
-    if (!promptInput.trim()) return;
+    const targetPrompt = overridePrompt || promptInput;
+    if (!targetPrompt.trim()) return;
 
     setLoadingPlan(true);
-    setSimulatedLogs(prev => [`Dispatching orchestrator query: "${promptInput}"`, ...prev]);
+    if (overridePrompt) {
+      setPromptInput(overridePrompt);
+    }
+    setSimulatedLogs(prev => [`Dispatching orchestrator query: "${targetPrompt}"`, ...prev]);
 
     try {
       const res = await fetch("/api/gemini/orchestrate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: promptInput })
+        body: JSON.stringify({ prompt: targetPrompt })
       });
 
       if (res.ok) {
@@ -191,12 +196,58 @@ export default function App() {
         ]);
         
         // Refresh turing leaderboard, etc.
-        fetchState();
+        await fetchState();
+
+        // Run portfolio rebalancing or swarm orchestration dynamically!
+        const promptOverride = `Optimize and allocate newly deposited $${amt} MNT across vaults for supreme yield distribution under current market constraints.`;
+        submitOrchestration(undefined, promptOverride);
+
+        // Transition user to the agent terminal tab to show live swarm behavior
+        setActiveTab("terminal");
       }
     } catch (err) {
       console.error(err);
     } finally {
       setIsDepositing(false);
+    }
+  };
+
+  // Perform Dynamic Sharpe Limits Recalculation
+  const handleRecalculate = async () => {
+    setIsRecalculating(true);
+    setSimulatedLogs(prev => [
+      "Initiating real-time Sharpe Limit recalculation sequence...",
+      "Querying Nansen whale index deviations...",
+      "Pulling updated Allora forecast matrices...",
+      ...prev
+    ]);
+
+    try {
+      const res = await fetch("/api/recalculate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setAppState(prev => ({
+            ...prev,
+            turingLeaderboard: data.turingLeaderboard
+          }));
+
+          setSimulatedLogs(prev => [
+            "Sharpe Limit recalculation complete!",
+            `Leaderboard updated successfully. Top group: ${data.turingLeaderboard[0]?.name || "MantleOS Collective"}`,
+            ...prev
+          ]);
+        }
+      }
+    } catch (err) {
+      console.error("Error recalculating Sharpe parameters:", err);
+      setSimulatedLogs(prev => ["Failed to reach recalculate oracle.", ...prev]);
+    } finally {
+      setIsRecalculating(false);
     }
   };
 
@@ -647,7 +698,7 @@ export default function App() {
                       <Terminal className="w-8 h-8 text-neutral-700 animate-pulse" />
                       <p className="text-xs text-neutral-400">No active plan debated yet. Type your mandate above and execute plan.</p>
                       <button 
-                        onClick={() => submitOrchestration()}
+                        onClick={() => submitOrchestration(undefined, "Generate passive income with minimal risk over mETH and USDY pools.")}
                         className="text-xs bg-[#111318] hover:bg-[#1a1c23] text-[#00E5A4] border border-[#00E5A422] px-3.5 py-1.5 rounded font-mono transition mt-2 cursor-pointer"
                       >
                         Run Default Strategy Search
@@ -895,11 +946,12 @@ export default function App() {
                 </p>
               </div>
               <button 
-                onClick={handleDeposit}
-                className="bg-[#050608] text-[#00E5A4] hover:bg-[#111318] border border-[#1a1c23] px-4 py-2 rounded text-xs flex items-center gap-2 transition font-medium shrink-0 cursor-pointer font-mono"
+                onClick={handleRecalculate}
+                disabled={isRecalculating}
+                className="bg-[#050608] text-[#00E5A4] hover:bg-[#111318] border border-[#1a1c23] px-4 py-2 rounded text-xs flex items-center gap-2 transition font-medium shrink-0 cursor-pointer font-mono disabled:opacity-55"
               >
-                <RefreshCw className="w-3.5 h-3.5" />
-                Recalculate Sharpe Limits
+                <RefreshCw className={`w-3.5 h-3.5 ${isRecalculating ? "animate-spin" : ""}`} />
+                {isRecalculating ? "Recalculating Sharpe Parameters..." : "Recalculate Sharpe Limits"}
               </button>
             </div>
 

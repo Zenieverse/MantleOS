@@ -7,8 +7,6 @@
 This contains everything you need to run your app locally.
 
 View your app in AI Studio: https://ai.studio/apps/a1ac9ecc-58bb-49ff-a235-a8fffb01437e
- or https://mantleos-764082783379.us-west1.run.app
-
 
 ## Run Locally
 

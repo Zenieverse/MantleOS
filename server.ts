@@ -203,6 +203,49 @@ app.post("/api/deposit", (req, res) => {
   });
 });
 
+// API: Recalculate Sharpe limits and update leaderboard
+app.post("/api/recalculate", (req, res) => {
+  // Slight mutation of the values to show active feedback simulation
+  state.turingLeaderboard = state.turingLeaderboard.map(competitor => {
+    // Human gets positive deviation if they deposited previously
+    const deltaRoi = competitor.id === "u1" 
+      ? (state.depositedAmount > 0 ? Number((Math.random() * 0.45).toFixed(2)) : Number(((Math.random() - 0.5) * 0.25).toFixed(2)))
+      : Number(((Math.random() - 0.5) * 1.8).toFixed(2));
+    
+    const deltaSharpe = competitor.id === "u1"
+      ? (state.depositedAmount > 0 ? Number((Math.random() * 0.06).toFixed(2)) : Number(((Math.random() - 0.5) * 0.03).toFixed(2)))
+      : Number(((Math.random() - 0.5) * 0.16).toFixed(2));
+    
+    const newRoi = Math.max(1, Number((competitor.roi + deltaRoi).toFixed(1)));
+    const newSharpe = Math.max(0.1, Number((competitor.sharpeRatio + deltaSharpe).toFixed(2)));
+    const newDrawdown = Math.max(0.5, Number((competitor.drawdown + (Math.random() - 0.5) * 0.6).toFixed(1)));
+    const newConsistency = Math.max(50, Math.min(100, Math.round(competitor.consistencyScore + (Math.random() - 0.5) * 5)));
+    const newAdaptability = Math.max(50, Math.min(100, Math.round(competitor.adaptabilityScore + (Math.random() - 0.5) * 5)));
+
+    return {
+      ...competitor,
+      roi: newRoi,
+      sharpeRatio: newSharpe,
+      drawdown: newDrawdown,
+      consistencyScore: newConsistency,
+      adaptabilityScore: newAdaptability
+    };
+  });
+
+  // Sort by Sharpe Ratio descending, then by ROI descending to establish robust leaderboard ranks
+  state.turingLeaderboard.sort((a, b) => b.sharpeRatio - a.sharpeRatio || b.roi - a.roi);
+
+  // Re-calculate actual rank
+  state.turingLeaderboard.forEach((comp, idx) => {
+    comp.rank = idx + 1;
+  });
+
+  res.json({
+    success: true,
+    turingLeaderboard: state.turingLeaderboard
+  });
+});
+
 // API: Call Gemini to produce real agent debate and plan
 app.post("/api/gemini/orchestrate", async (req, res) => {
   const { prompt } = req.body;
