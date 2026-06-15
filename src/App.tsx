@@ -31,7 +31,9 @@ import {
   Layers,
   CheckCircle,
   Clock,
-  HelpCircle
+  HelpCircle,
+  X,
+  MessageSquare
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { AgentType, AgentNFT, DecisionLog, TuringCompetitor, SmartMoneyFlow, AlloraForecast, SocialNarrative, AgentMessage } from "./types";
@@ -49,6 +51,22 @@ export default function App() {
   const [isDepositing, setIsDepositing] = useState(false);
   const [isRecalculating, setIsRecalculating] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+
+  // Interactive Turing Test Mode States
+  const [isTuringModalOpen, setIsTuringModalOpen] = useState(false);
+  const [selectedCompetitorId, setSelectedCompetitorId] = useState<string>("u1");
+  const [turingProbeInput, setTuringProbeInput] = useState("");
+  const [isProbing, setIsProbing] = useState(false);
+  const [probeLogs, setProbeLogs] = useState<Record<string, Array<{ sender: "user" | "competitor", text: string }>>>({
+    "u1": [{ sender: "competitor", text: "GM bro! Just checking the charts right now and praying gas fees don't spike. What's up? Searching for degen wisdom or trying to catch me slacking?" }],
+    "1": [{ sender: "competitor", text: "Consensus module active. Alpha and Risk parameters are operating within standard 4.2% bounds. Ask me any strategic query to evaluate our consensus layers." }],
+    "2": [{ sender: "competitor", text: "Predictive neural networks operational. Data ingest rate: 450 items/sec. Feed me volatility inputs to verify mathematical coherence." }],
+    "3": [{ sender: "competitor", text: "Flow indexer operational. Standard tracking focuses on whale wallet transactions above $150k limit. Enter standard diagnostic prompt." }],
+    "4": [{ sender: "competitor", text: "Safety guard lock fully engaged. Liquidity hedge parameters are strictly isolated in mETH pools. Query protocol details." }],
+    "5": [{ sender: "competitor", text: "Traditional risk metrics locked. Portfolio rebalancing requires manual three-step signature authorization. Outline multi-sig inquiries." }],
+    "6": [{ sender: "competitor", text: "Virtuals dynamic characters initialized. Cultivating network identity index. Provide conversational prompt vectors." }]
+  });
+  const [competitorGuesses, setCompetitorGuesses] = useState<Record<string, { guessedType: 'Human' | 'AI', evaluated: boolean, isCorrect: boolean }>>({});
 
   // Server state mirroring
   const [appState, setAppState] = useState({
@@ -258,6 +276,120 @@ export default function App() {
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
+  // Perform dynamic Turing test audit probes on competitors
+  const handleProbeCompetitor = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!turingProbeInput.trim() || isProbing) return;
+
+    const userMsg = turingProbeInput.trim();
+    setTuringProbeInput("");
+    setIsProbing(true);
+
+    // Dynamic terminal/narrative feedback
+    setSimulatedLogs(prev => [`[TURING AUDIT] Dispatching cognitive probe to competitor #${selectedCompetitorId}...`, ...prev]);
+
+    // Append user dialogue
+    setProbeLogs(prev => {
+      const currentChat = prev[selectedCompetitorId] || [];
+      return {
+        ...prev,
+        [selectedCompetitorId]: [...currentChat, { sender: "user", text: userMsg }]
+      };
+    });
+
+    try {
+      const res = await fetch("/api/turing/probe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ competitorId: selectedCompetitorId, message: userMsg })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setProbeLogs(prev => {
+          const currentChat = prev[selectedCompetitorId] || [];
+          return {
+            ...prev,
+            [selectedCompetitorId]: [...currentChat, { sender: "competitor", text: data.reply }]
+          };
+        });
+        setSimulatedLogs(prev => [
+          `[TURING SUCCESS] Response solved from competitor #${selectedCompetitorId}. Coherence score matches expected margins.`,
+          ...prev
+        ]);
+      } else {
+        throw new Error("Validation prompt error");
+      }
+    } catch (err) {
+      console.error(err);
+      setProbeLogs(prev => {
+        const currentChat = prev[selectedCompetitorId] || [];
+        return {
+          ...prev,
+          [selectedCompetitorId]: [...currentChat, { sender: "competitor", text: "Warning: Cognitive interface latency. Response routed through backup on-chain heuristics." }]
+        };
+      });
+      setSimulatedLogs(prev => [`[TURING ERROR] Diagnostic query failed to reach validator oracle.`, ...prev]);
+    } finally {
+      setIsProbing(false);
+    }
+  };
+
+  // Evaluate human vs AI and reward XP/Reputation
+  const handleRegisterGuess = (competitorId: string, guess: 'Human' | 'AI') => {
+    const competitor = appState.turingLeaderboard.find(c => c.id === competitorId);
+    if (!competitor) return;
+
+    const isActuallyHuman = competitor.type === "Human";
+    const isCorrect = (guess === "Human" && isActuallyHuman) || (guess === "AI" && !isActuallyHuman);
+
+    setCompetitorGuesses(prev => ({
+      ...prev,
+      [competitorId]: {
+        guessedType: guess,
+        evaluated: true,
+        isCorrect
+      }
+    }));
+
+    if (isCorrect) {
+      setAppState(prev => {
+        const finalXp = prev.activeNftXp + 250;
+        let finalLevel = prev.activeNftLevel;
+        let displayXp = finalXp;
+        const achievementsList = [...prev.achievements];
+        
+        if (finalXp >= 1000) {
+          finalLevel += 1;
+          displayXp -= 1000;
+          achievementsList.push(`Level ${finalLevel} AI Detective`);
+        }
+        
+        if (!achievementsList.includes("Turing Master Evaluator")) {
+          achievementsList.push("Turing Master Evaluator");
+        }
+
+        return {
+          ...prev,
+          activeNftXp: displayXp,
+          activeNftLevel: finalLevel,
+          activeNftReputation: Math.min(100, prev.activeNftReputation + 6),
+          achievements: achievementsList
+        };
+      });
+
+      setSimulatedLogs(prev => [
+        `🏆 [TURING CORRECT] You evaluated "${competitor.name}" successfully! Guessed: ${guess}. True Nature: ${competitor.type}. +250 XP earned.`,
+        ...prev
+      ]);
+    } else {
+      setSimulatedLogs(prev => [
+        `❌ [TURING INCORRECT] Incorrect guess. "${competitor.name}" is actually a ${competitor.type}. Practice caution.`,
+        ...prev
+      ]);
+    }
+  };
+
   // Pitch Slide Navigator
   const nextSlide = () => setPitchSlide(prev => (prev + 1) % 6);
   const prevSlide = () => setPitchSlide(prev => (prev - 1 + 6) % 6);
@@ -380,9 +512,15 @@ export default function App() {
             <span className="text-[#666] text-[9px] leading-none mb-1">MANTLE GAS</span>
             <span className="text-[#00E5A4] font-bold">0.02 GWEI</span>
           </div>
-          <div className="px-2.5 py-1 bg-[#ff4e0022] border border-[#ff4e00] text-[#ff4e00] rounded animate-pulse font-bold tracking-tighter text-[10px]">
-            TURING TEST MODE ACTIVE
-          </div>
+          <button
+            onClick={() => setIsTuringModalOpen(true)}
+            id="turing-test-active-btn"
+            className="px-2.5 py-1.5 bg-[#ff4e0022] border border-[#ff4e00]/60 hover:border-[#ff4e00] text-[#ff4e00] rounded animate-pulse font-bold tracking-tighter text-[10px] hover:bg-[#ff4e003a] transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+            title="Launch Turing Coherence Diagnostics Overlay"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-[#ff4e00] inline-block whitespace-nowrap"></span>
+            TURING TEST ACTIVE (AUDIT)
+          </button>
         </div>
       </header>
 
@@ -1316,6 +1454,242 @@ export default function App() {
       &copy; 2026 MantleOS Project. Settle Layer: Mantle L2. Portability specification: ERC-8004.
     </p>
   </footer>
+
+  {/* TURING TEST DEEP AUDIT MODAL OVERLAY */}
+  <AnimatePresence>
+    {isTuringModalOpen && (
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+        id="turing-diagnostic-modal"
+      >
+        <motion.div 
+          initial={{ scale: 0.95, y: 15 }}
+          animate={{ scale: 1, y: 0 }}
+          exit={{ scale: 0.95, y: 15 }}
+          className="w-full max-w-4xl bg-[#080a0e] border border-[#ff4e00]/30 rounded-lg shadow-[0_0_50px_rgba(255,78,0,0.12)] flex flex-col h-[85vh] max-h-[720px] overflow-hidden"
+        >
+          {/* Header */}
+          <div className="bg-[#0c0f16] border-b border-[#1a1c23] px-5 py-4 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2.5">
+              <span className="w-2 h-2 rounded-full bg-[#ff4e00] animate-ping"></span>
+              <div>
+                <h3 className="text-sm font-bold text-white font-mono tracking-wider flex items-center gap-2">
+                  MANTLEOS COGNITIVE TURING AUDITOR
+                </h3>
+                <p className="text-[10px] text-neutral-400 font-sans mt-0.5">
+                  Verify human intuition against automated AI agent swarms. Probe strategic narratives using Gemini alignment checks.
+                </p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setIsTuringModalOpen(false)}
+              className="text-neutral-400 hover:text-white p-1 hover:bg-[#1a1c23]/60 rounded transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Main content pane */}
+          <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+            
+            {/* Left side: Competitors list */}
+            <div className="w-full md:w-[360px] border-r border-[#1a1c23] bg-[#06080b] flex flex-col overflow-y-auto">
+              <div className="p-4 border-b border-[#1a1c23] bg-[#08090d]/60 shrink-0">
+                <span className="text-[9px] font-mono font-bold tracking-wider text-[#ff4e00] uppercase">
+                  Select Competitor to Probe
+                </span>
+              </div>
+              <div className="flex-1 p-3 space-y-2">
+                {appState.turingLeaderboard.map((competitor) => {
+                  const isSelected = selectedCompetitorId === competitor.id;
+                  const guess = competitorGuesses[competitor.id];
+                  
+                  return (
+                    <div 
+                      key={competitor.id}
+                      onClick={() => setSelectedCompetitorId(competitor.id)}
+                      className={`p-3 rounded border transition duration-200 cursor-pointer text-left relative overflow-hidden ${
+                        isSelected 
+                          ? "bg-[#ff4e0011] border-[#ff4e00]/50 shadow-[inset_0_0_8px_rgba(255,78,0,0.05)]" 
+                          : "bg-[#0b0d12] border-[#1a1c23] hover:border-neutral-700 hover:bg-[#0f1118]"
+                      }`}
+                    >
+                      <div className="flex justify-between items-start mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[9px] text-neutral-500 font-bold">
+                            #{competitor.rank}
+                          </span>
+                          <span className="font-semibold text-xs text-white max-w-[150px] truncate block font-sans">
+                            {competitor.name}
+                          </span>
+                        </div>
+                        <span className={`text-[8px] px-1.5 py-0.5 rounded font-mono font-bold uppercase tracking-widest ${
+                          competitor.type === "Human" 
+                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                            : competitor.type === "Agent"
+                            ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
+                            : "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
+                        }`}>
+                          {competitor.type}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center text-[10px] font-mono text-neutral-400 mt-2">
+                        <span>ROI: <strong className="text-neutral-200">{competitor.roi}%</strong></span>
+                        <span>Sharpe: <strong className="text-neutral-200">{competitor.sharpeRatio}</strong></span>
+                      </div>
+
+                      {/* Guesses status */}
+                      <div className="border-t border-[#1a1c23]/60 mt-2.5 pt-2 flex items-center justify-between gap-1">
+                        {!guess?.evaluated ? (
+                          <>
+                            <span className="text-[9px] font-mono text-neutral-500 font-medium font-sans">Verify nature:</span>
+                            <div className="flex gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                              <button 
+                                onClick={() => handleRegisterGuess(competitor.id, "Human")}
+                                className="px-2 py-0.5 bg-[#00E5A415] hover:bg-[#00E5A425] text-[#00E5A4] border border-[#00E5A422] rounded text-[9px] font-mono font-bold transition cursor-pointer"
+                              >
+                                Human
+                              </button>
+                              <button 
+                                onClick={() => handleRegisterGuess(competitor.id, "AI")}
+                                className="px-2 py-0.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20 rounded text-[9px] font-mono font-bold transition cursor-pointer"
+                              >
+                                AI Bot
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex items-center justify-between w-full text-[10px] font-mono">
+                            <span className="text-neutral-500">Result:</span>
+                            <div className="flex items-center gap-1.5 font-bold">
+                              {guess.isCorrect ? (
+                                <span className="text-emerald-400 flex items-center gap-1">
+                                  <CheckCircle className="w-3 h-3 text-emerald-400" /> Correct
+                                </span>
+                              ) : (
+                                <span className="text-rose-400">
+                                  Incorrect
+                                </span>
+                              )}
+                              <span className="text-neutral-400 bg-neutral-800 px-1.5 py-0.5 rounded text-[8px] font-semibold font-sans">
+                                Was {competitor.type}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Right side: Auditing chat pane */}
+            {selectedCompetitorId ? (() => {
+              const selectedComp = appState.turingLeaderboard.find(c => c.id === selectedCompetitorId);
+              const currentLogs = probeLogs[selectedCompetitorId] || [];
+              const guessInfo = competitorGuesses[selectedCompetitorId];
+              
+              return (
+                <div className="flex-1 flex flex-col bg-[#050609] overflow-hidden justify-between">
+                  {/* Tab header */}
+                  <div className="p-4 border-b border-[#1a1c23] bg-[#0a0c11]/80 shrink-0">
+                    <div className="flex justify-between items-start gap-2">
+                      <div>
+                        <h4 className="text-xs font-bold text-white font-mono flex items-center gap-2">
+                          <MessageSquare className="w-3.5 h-3.5 text-[#ff4e00]" />
+                          AUDITING COGNITIVE MATRIX: {selectedComp?.name || "Target Competitor"}
+                        </h4>
+                        <p className="text-[10px] text-neutral-400 font-sans mt-1">
+                          Persona parameters: Type <strong>{selectedComp?.type}</strong> &bull; Sharpe Index: <strong>{selectedComp?.sharpeRatio}</strong> &bull; Adaptability Score: <strong>{selectedComp?.adaptabilityScore}%</strong>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Message pane */}
+                  <div className="flex-1 p-4 overflow-y-auto space-y-3.5 flex flex-col">
+                    <div className="bg-[#11131a]/40 border border-[#1a1c23] p-3 rounded text-[10px] text-[#ff4e00]/90 font-mono flex gap-2 items-start tracking-tight">
+                      <span className="shrink-0 p-1 bg-[#ff4e00]/10 border border-[#ff4e00]/20 text-[#ff4e00] rounded">
+                        <Sparkles className="w-3.5 h-3.5" />
+                      </span>
+                      <span>
+                        SYSTEM DECREE: Ask analytical, tactical, or conversational questions. Analyze vocabulary patterns, timing markers, and data accuracy to formulate your guess. Gained XP will raise your ERC-8004 reputational tiers.
+                      </span>
+                    </div>
+
+                    {currentLogs.map((log, idx) => {
+                      const isUser = log.sender === "user";
+                      return (
+                        <div 
+                          key={idx} 
+                          className={`flex flex-col max-w-[85%] ${isUser ? "self-end items-end" : "self-start items-start"}`}
+                        >
+                          <span className="text-[8px] font-mono text-neutral-500 mb-1">
+                            {isUser ? "YOU (AUDITOR)" : (selectedComp?.name || "TARGET")}
+                          </span>
+                          <div className={`p-3 rounded text-xs font-sans leading-relaxed ${
+                            isUser 
+                              ? "bg-[#11131a] text-white border border-[#1a1c23] rounded-br-none"
+                              : "bg-[#ff4e0015] text-neutral-200 border border-[#ff4e00]/20 rounded-bl-none"
+                          }`}>
+                            {log.text}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {isProbing && (
+                      <div className="flex flex-col self-start items-start max-w-[85%]">
+                        <span className="text-[8px] font-mono text-neutral-500 mb-1">
+                          {selectedComp?.name || "TARGET"}
+                        </span>
+                        <div className="bg-[#ff4e0010] text-[#ff4e00] border border-[#ff4e00]/10 p-3 rounded text-xs font-mono flex items-center gap-2 rounded-bl-none">
+                          <RefreshCw className="w-3 h-3 animate-spin" />
+                          PROBING COGNITIVE RESPONSE MATRIX...
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Input bar */}
+                  <div className="p-4 bg-[#0a0c10] border-t border-[#1a1c23] shrink-0">
+                    <form onSubmit={handleProbeCompetitor} className="flex gap-2">
+                      <input 
+                        type="text"
+                        value={turingProbeInput}
+                        onChange={(e) => setTuringProbeInput(e.target.value)}
+                        disabled={isProbing}
+                        placeholder={`Question ${selectedComp?.name || "Target"} (e.g. "What staking criteria do you use?")`}
+                        className="flex-1 bg-[#050608] border border-[#1a1c23] rounded text-xs font-sans px-3 py-2 text-white placeholder-neutral-500 focus:outline-none focus:border-[#ff4e00]/50"
+                      />
+                      <button 
+                        type="submit"
+                        disabled={isProbing || !turingProbeInput.trim()}
+                        className="px-4 py-2 bg-[#ff4e00] hover:bg-[#ff4e00]/90 disabled:bg-[#1a1c23] text-white disabled:text-neutral-500 font-mono text-xs font-bold rounded transition cursor-pointer shrink-0"
+                      >
+                        {isProbing ? "Probing..." : "Send Probe"}
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              );
+            })() : (
+              <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-neutral-500 font-mono text-xs gap-2">
+                <HelpCircle className="w-10 h-10 text-neutral-700 animate-pulse" />
+                <span>No competitor selected. Please highlight a participant from the left rail directory.</span>
+              </div>
+            )}
+
+          </div>
+        </motion.div>
+      </motion.div>
+    )}
+  </AnimatePresence>
 
 </div>
   );

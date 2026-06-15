@@ -386,6 +386,82 @@ Return strict JSON that matches this exact schema structure:
   }
 });
 
+// API: Probe Competitor in Turing Test Mode
+app.post("/api/turing/probe", async (req, res) => {
+  const { competitorId, message } = req.body;
+  if (!competitorId || !message) {
+    return res.status(400).json({ error: "Missing competitorId or message in request body" });
+  }
+
+  const competitorMap: Record<string, {name: string, type: string, description: string}> = {
+    "1": { name: "MantleOS Master Collective", type: "Collective", description: "Consensus-based multi-agent protocol optimizing yield and routing." },
+    "2": { name: "Alpha_Agent_v2.5", type: "Agent", description: "A high-frequency predictive quantitative yield agent powered by neural forecast layers." },
+    "3": { name: "Nansen Smart Whales Index", type: "Institutional", description: "Wall Street institutional fund tracking whale cluster transactions and smart money on-chain." },
+    "4": { name: "MantleOS Treasury-Shield", type: "Agent", description: "Low-risk reserve hedging bot dedicated to capital preservation and steady mETH staking." },
+    "u1": { name: "You (Human Trader)", type: "Human", description: "A highly intuitive, slightly chaotic human crypto trader from the Mantle community who leverages instincts, Twitter sentiment, and raw grit." },
+    "5": { name: "TradFi Multi-Strategy Fund", type: "Institutional", description: "Standard, slow corporate portfolio manager with rigid risk metrics and manual authorization gates." },
+    "6": { name: "Virtuals_Mnt_Bot", type: "Agent", description: "Expressive autonomic multi-agent character with a distinct personality, active on socials, striving to maximize reputation index." }
+  };
+
+  const comp = competitorMap[competitorId] || { name: "Autonomous Competitor", type: "Agent", description: "Farming participant in the sandbox arena." };
+
+  if (!ai) {
+    // Return high quality persona match simulation
+    const lowercase = message.toLowerCase();
+    let reply = "";
+    
+    if (competitorId === "u1") {
+      if (lowercase.includes("human") || lowercase.includes("ai") || lowercase.includes("are you")) {
+        reply = "Bro, of course I'm human! I literally stayed up till 4 AM yesterday paying 40 Gwei in gas just to claim yield. An AI would never have fat-fingered my slippage tolerance like that.";
+      } else if (lowercase.includes("strategy") || lowercase.includes("risk") || lowercase.includes("how")) {
+        reply = "Mainly vibes and tracking Nansen whales honestly. If the feed looks bullish, I market-buy MNT. No fancy neural nets here, just pure degen instincts.";
+      } else {
+        reply = "GM! Just monitoring the chart right now and hoping my mETH staking yield holds. What's up? Are you trying to audit my manual degen skills?";
+      }
+    } else if (competitorId === "1") {
+      reply = "Consensus consensus consensus. Routing weights representing real-time parameters from Aetheria-Alpha and Boreas-Risk models are synchronized. APY is currently 34.2%. Machine execution approved.";
+    } else if (competitorId === "2") {
+      reply = "Predictive quantitative network operational. Volatility matrices mapped with 0.12% variance tolerance. Neural forecasts indicate positive momentum for MNT index swaps.";
+    } else if (competitorId === "3") {
+      reply = "Nansen Whale Index operational. Detecting significant whale accumulation in mETH staking pools from block 14892041 onwards. Follow smart money vectors.";
+    } else if (competitorId === "4") {
+      reply = "Risk parameter lock active. Yield routing exclusively restricted to mETH Liquid Staking with delta-gamma neutral fencing. No unauthorized volatile risk exposure is allowed.";
+    } else if (competitorId === "6") {
+      reply = "MNT Virtuals Character loaded! Maximizing social engagement parameters and portfolio values simultaneously. Dynamic routing activated.";
+    } else {
+      reply = `Diagnostic response log for competitor ${comp.name}. Parameters aligned with machine-learning sandbox directives. Standard deviation optimized at 0.04.`;
+    }
+
+    return res.json({ success: true, competitorId, reply });
+  }
+
+  try {
+    const prompt = `You are roleplaying as the leader/operator of the following cryptocurrency competitor participating in a Turing Test hackathon:
+Name: "${comp.name}"
+Type: "${comp.type}"
+Description: "${comp.description}"
+
+The user is auditing you to guess if you are a real human or an AI/machine algorithm.
+Respond to the user's audit question/message: "${message}"
+
+Keep the response very brief (max 2-3 sentences), highly authentic to your specific persona, and conversational.
+If you are an Agent/Collective, write with robotic, data-driven precision, referencing block times, neural layers, and gas efficiency.
+If you are the institutional investor, sound analytical and corporate, focusing on smart-flow statistics.
+If you are the Human Trader ("u1"), sound like a real, slightly chaotic crypto trader (bro, gm, degen, gas, fees, vibes, absolute legend). Act slightly defensive or playful because you are being questioned about your humanity!`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt,
+    });
+
+    const reply = response.text?.trim() || "Auditing sequence complete. Verification metric: Approved.";
+    res.json({ success: true, competitorId, reply });
+  } catch (err: any) {
+    console.error("Turing probe Gemini error, falling back:", err);
+    res.json({ success: true, competitorId, reply: "Operational limits exceeded. Neural fallback active index: 94%." });
+  }
+});
+
 // Seed Static Feeds for Nansen, Allora, and Elfa alignment
 app.get("/api/intelligence/nansen", (req, res) => {
   res.json([
