@@ -1,0 +1,9 @@
+{
+  "name": "MantleOS",
+  "description": "An Autonomous Wealth Operating System where AI agents earn, protect, allocate, optimize, and grow wealth on behalf of humans.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
